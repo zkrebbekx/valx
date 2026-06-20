@@ -1,6 +1,6 @@
 module github.com/zkrebbekx/valx
 
-go 1.26.4
+go 1.23
 
 require github.com/smartystreets/goconvey v1.8.1
 

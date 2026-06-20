@@ -6,7 +6,7 @@ ranges, and `required` — in the spirit of
 [go-playground/validator](https://github.com/go-playground/validator) (v10),
 without the dependency.
 
-Library is zero-dependency. Go 1.24+.
+Library is zero-dependency. Go 1.23+.
 
 ```go
 import "github.com/zkrebbekx/valx"
