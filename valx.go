@@ -106,6 +106,17 @@ func (e ValidationErrors) Error() string {
 // Validate performs only reads and holds no state, so it is safe to call
 // concurrently.
 func Validate[T any](s T) error {
+	return ValidateWith(s, "valx")
+}
+
+// ValidateWith is like [Validate] but reads rules from the struct tag named
+// tagKey instead of "valx". It lets one struct carry two independent rule sets —
+// for example a "valx" tag for hard constraints and another key for soft ones —
+// each validated separately. An empty tagKey defaults to "valx".
+func ValidateWith[T any](s T, tagKey string) error {
+	if tagKey == "" {
+		tagKey = "valx"
+	}
 	v := reflect.ValueOf(s)
 	if !v.IsValid() {
 		return fmt.Errorf("valx: Validate called on a nil value")
@@ -121,7 +132,7 @@ func Validate[T any](s T) error {
 	}
 
 	var errs ValidationErrors
-	walkStruct(v, "", &errs)
+	walkStruct(v, "", tagKey, &errs)
 	if len(errs) > 0 {
 		return errs
 	}
@@ -136,14 +147,14 @@ func MustValidate[T any](s T) {
 	}
 }
 
-func walkStruct(v reflect.Value, prefix string, errs *ValidationErrors) {
+func walkStruct(v reflect.Value, prefix, tagKey string, errs *ValidationErrors) {
 	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
 		if !f.IsExported() {
 			continue
 		}
-		tag := f.Tag.Get("valx")
+		tag := f.Tag.Get(tagKey)
 		if tag == "-" {
 			continue
 		}
@@ -172,28 +183,28 @@ func walkStruct(v reflect.Value, prefix string, errs *ValidationErrors) {
 			}
 		}
 
-		walkValue(fv, path, errs)
+		walkValue(fv, path, tagKey, errs)
 	}
 }
 
 // walkValue recurses into structs reachable from fv: directly, through a
 // slice/array/map of structs, or through pointers to either.
-func walkValue(fv reflect.Value, path string, errs *ValidationErrors) {
+func walkValue(fv reflect.Value, path, tagKey string, errs *ValidationErrors) {
 	switch fv.Kind() {
 	case reflect.Struct:
-		walkStruct(fv, path, errs)
+		walkStruct(fv, path, tagKey, errs)
 	case reflect.Slice, reflect.Array:
 		for i := 0; i < fv.Len(); i++ {
 			elem := indirect(fv.Index(i))
 			if elem.Kind() == reflect.Struct {
-				walkStruct(elem, fmt.Sprintf("%s[%d]", path, i), errs)
+				walkStruct(elem, fmt.Sprintf("%s[%d]", path, i), tagKey, errs)
 			}
 		}
 	case reflect.Map:
 		for _, k := range fv.MapKeys() {
 			elem := indirect(fv.MapIndex(k))
 			if elem.Kind() == reflect.Struct {
-				walkStruct(elem, fmt.Sprintf("%s[%v]", path, k.Interface()), errs)
+				walkStruct(elem, fmt.Sprintf("%s[%v]", path, k.Interface()), tagKey, errs)
 			}
 		}
 	}
