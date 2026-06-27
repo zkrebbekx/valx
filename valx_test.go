@@ -400,6 +400,35 @@ func TestValidateAcceptsPointer(t *testing.T) {
 	})
 }
 
+func TestValidateWithCustomTagKey(t *testing.T) {
+	type Profile struct {
+		// Two independent rule sets on one field: hard under "valx", soft under "check".
+		Age   int     `valx:"min=0" check:"min=18"`
+		Nest  Address `valx:"-"`
+		Score float64 `check:"max=100"`
+	}
+
+	Convey("Given a value that passes valx rules but violates the check rules", t, func() {
+		p := Profile{Age: 10, Nest: Address{City: "NY"}, Score: 250}
+
+		Convey("When validated under the default valx tag", func() {
+			err := valx.Validate(p)
+			So(err, ShouldBeNil) // Age>=0 ok; Score has no valx rule
+		})
+
+		Convey("When validated under the custom 'check' tag", func() {
+			err := valx.ValidateWith(p, "check")
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldContainSubstring, "Age")
+			So(err.Error(), ShouldContainSubstring, "Score")
+		})
+
+		Convey("When tagKey is empty it falls back to valx", func() {
+			So(valx.ValidateWith(p, ""), ShouldBeNil)
+		})
+	})
+}
+
 func TestValidateRejectsUntypedNil(t *testing.T) {
 	Convey("Given an untyped nil", t, func() {
 		Convey("When validated", func() {
